@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>SQLite Viewer</title>
+  <script src="https://unpkg.com/ag-grid-community/dist/ag-grid-community.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/ag-grid-community/dist/styles/ag-grid.css">
+  <link rel="stylesheet" type="text/css"
+    href="https://unpkg.com/ag-grid-community/dist/styles/ag-theme-balham-dark.css">
+  <script src="https://cdn.jsdelivr.net/gh/WangYuLue/image-conversion/build/conversion.js"></script>
+
+  <style>
+    ::-webkit-scrollbar-track {
+      background-color: #252526;
+    }
+
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background-color: #555;
+    }
+
+    * {
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      flex: 1 0 0;
+      height: 100vh;
+      overflow: hidden;
+      background: #2D3436;
+    }
+
+    dropzone {
+      height: 100%;
+      width: 100%;
+      display: block;
+      cursor: pointer;
+    }
+
+    .highlight {
+      background: #707677;
+    }
+
+    #grid {
+      flex: 1 0 0;
+      height: 100%;
+      width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <input type="file" name="file" id="file" style="height: 0;" onchange="onDrop(this)">
+  <dropzone></dropzone>
+  <script>
+    let dropArea = document.querySelector("dropzone");
+    ;['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      document.body.addEventListener(eventName, e => {
+        e.preventDefault()
+        e.stopPropagation()
+      }, false)
+    })
+
+    function highlight(e) {
+      dropArea.classList.add('highlight')
+    }
+
+    function unhighlight(e) {
+      dropArea.classList.remove('highlight')
+    }
+
+    async function onDrop(e) {
+      files = e.dataTransfer?.files || e
+      const database = await files[0].arrayBuffer()
+      openDatabase(database)
+    }
+
+    let writable, fileHandle;
+
+    async function onClick(e) {
+      [fileHandle] = await window.showOpenFilePicker();
+      console.log(fileHandle)
+      const file = await fileHandle.getFile()
+      writable = await fileHandle.createWritable();
+      
+      const database = await file.arrayBuffer()
+      openDatabase(database)
+
+
+      // Write the contents of the file to the stream.
+
+      // Close the file and write the contents to disk.
+      //await writable.close();
+
+    }
+
+    ;['dragenter', 'dragover'].forEach(eventName => {
+      dropArea.addEventListener(eventName, highlight, false)
+    })
+
+      ;['dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, unhighlight, false)
+      })
+
+    dropArea.addEventListener('drop', onDrop, false)
+    dropArea.addEventListener('click', onClick, false)
+
+  </script>
+  <script type="module">
+
+    import SPL from './index.js';
+
+    window.openDatabase = async (database) => {
+      try {
+
+        const spl = await SPL();
+
+        window.db = await spl.db(database)
+        createAggrid()
+        //document.querySelector("dropzone").remove()
+
+      } catch (err) {
+        console.log(err);
+      }
+    };
+
+  </script>
+
+  <script type="text/javascript" charset="utf-8">
+    const editCell = async (event) => {
+      
+      if(event.colDef.cellRenderer == "imageCellRenderer"){
+        [imageHandle] = await window.showOpenFilePicker();
+        const file = await imageHandle.getFile()
+        const image = await imageConversion.compress(file, {
+          quality: 0.8,
+          type: "image/jpeg",
+          width: 64,
+          height: 64
+        })
+        const dataURI = await imageConversion.filetoDataURL(image)
+        event.node.setDataValue("thumbnail",dataURI)
+      }
+      
+    }
+
+    class ImageCellRenderer {
+      constructor() { }
+
+      // init method gets the details of the cell to be renderer
+      init(params) {
+        this.eGui = document.createElement('img');
+        this.eGui.src = params.value;
+        this.eGui.style = "display:block;height:24px"
+
+      }
+      getValue = function () {
+        return this.eInput.value;
+      };
+      refresh() {
+        return this.eGui;
+      }
+      getGui() {
+        return this.eGui;
+      };
+      isPopup() {
+        // and we could leave this method out also, false is the default
+        return true;
+      };
+    }
+
+    async function createAggrid() {
+      const markup = `<div id="grid"  class="ag-theme-balham-dark"></div>`;
+
+      document.body.innerHTML = markup
+      // specify the columns
+      const response = await db.exec("select * from users").get
+      console.log(response)
+      const cols = await response.cols
+      const objs = await response.objs
+
+
+      // let the grid know which columns to use
+
+      let gridOptions = {
+        enableRangeSelection: true,
+        components: {
+          imageCellRenderer: ImageCellRenderer,
+        },
+
+        columnDefs: cols.map(e => { return { field: e } }),
+        rowData: objs,
+
+        enableCellTextSelection: true,
+        rowSelection: 'multiple',
+
+        //onCellClicked: (event) => console.log('Cell was clicked', event),
+        onCellClicked: (event) => editCell(event),
+        onCellValueChanged: (event) => updateRow(event),
+        onCellContextMenu: (event) => console.log('Cell was onCellContextMenu', event),
+
+        defaultColDef: {
+          flex: 1,
+          minWidth: 100,
+          sortable: true,
+          filter: true,
+          editable: true,
+          resizable: true,
+        }
+      }
+      gridOptions.columnDefs.filter(e=> e.field == "thumbnail").cellRenderer = "imageCellRenderer"
+
+      // lookup the container we want the Grid to use
+      const eGridDiv = document.querySelector('#grid');
+
+      // create the grid passing in the div to use together with the columns & data we want to use
+      const grid = new agGrid.Grid(eGridDiv, gridOptions);
+
+
+    }
+
+
+    const updateRow = async e => {
+      if(e.newValue != e.oldValue){
+        const sql = `
+          UPDATE collections
+          SET ${e.column.colId} = '${e.newValue}'
+          WHERE id = '${e.data.id}';
+        `;
+        const stmt = db.exec(sql)
+        const database = await db.save()
+        await writable.write(database);
+        await writable.close();
+
+        writable = await fileHandle.createWritable();
+
+        db.save()
+      }
+    }
+
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Testing</title>
+
+</head>
+
+<body>
+  <script type="module">
+
+    import SPL from './index.js';
+
+    (async () => {
+      try {
+
+        const spl = await SPL();
+
+        window.db = await spl.db()
+          .read(`
+          SELECT InitSpatialMetaData('WGS84_ONLY');
+          DROP TABLE data_licenses;
+
+          CREATE TABLE collections(
+            id TEXT NOT NULL UNIQUE,
+            title TEXT,
+            desc TEXT,
+            thumbnail TEXT,
+            keywords TEXT,
+            tiles TEXT,
+            items TEXT
+          );
+          SELECT AddGeometryColumn('collections', 'bbox', 4326, 'POLYGON', 'XY');
+          SELECT CreateSpatialIndex('collections', 'bbox');
+
+          CREATE TABLE sources(
+            id TEXT NOT NULL,
+            type TEXT,
+            format TEXT,
+            path TEXT
+          );
+
+          CREATE TABLE styles(
+            id INTEGER,
+            collection TEXT,
+            style TEXT
+          );
+
+          CREATE TABLE users(
+            username TEXT,
+            password TEXT,
+            role TEXT
+          );
+
+          CREATE TABLE tokens(
+            username TEXT,
+            token TEXT
+          );
+        `)
+
+        const database = await db.save()
+
+        var file = new Blob([database], { type: "application/octet-binary;charset=utf-8" });
+        var a = document.createElement("a"), url = URL.createObjectURL(file);
+        a.href = url;
+        a.download = "config.sqlite";
+        document.body.appendChild(a);
+        a.click();
+
+      } catch (err) {
+        console.log(err);
+      }
+    })();
+
+  </script>
+</body>
+
+</html>

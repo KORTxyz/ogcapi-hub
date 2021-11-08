@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <script src="https://cdn.jsdelivr.net/gh/WangYuLue/image-conversion/build/conversion.js"></script>
+
+  <style>
+        body {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      flex: 1 0 0;
+      height: 100vh;
+      overflow: hidden;
+      background: #2D3436;
+    }
+  </style>
+</head>
+<body onclick="openFile()">
+  <script>
+    const openFile = async () => {
+      [fileHandle] = await window.showOpenFilePicker();
+      console.log(fileHandle)
+      const file = await fileHandle.getFile()
+      const image = await imageConversion.compress(file,{
+        quality: 0.8,
+        type: "image/jpeg",
+        width: 64,
+        height: 64
+      })
+      
+      console.log(await imageConversion.filetoDataURL(image))
+    }
+
+  </script>
+</body>
+</html>
